@@ -1,0 +1,56 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Events = ReplicatedStorage:WaitForChild("Events")
+local HitEvent = Events:WaitForChild("Hit")
+local MAX_DISTANCE_SQUARED = 2500
+
+RunService.Heartbeat:Connect(function()
+	local char = LocalPlayer.Character
+	if not char then return end
+
+	local hrp = char.HumanoidRootPart or char.Torso
+	if not hrp then return end
+
+	local humanoid = char.Humanoid
+	if not humanoid or humanoid.Health <= 0 then return end
+
+	local localPos = hrp.Position
+	local localTeam = LocalPlayer.Team
+
+	local players = Players:GetPlayers()
+	local targets = table.create(#players)
+	local count = 0
+
+	for _, player in players do
+		if player ~= LocalPlayer and (not localTeam or player.Team ~= localTeam) then
+			local tchar = player.Character
+			if tchar then
+				local thumanoid = tchar.Humanoid
+				if thumanoid and thumanoid.Health > 0 then
+					local tpart = tchar.HumanoidRootPart or tchar.Torso
+					if tpart then
+						local dx = tpart.Position.X - localPos.X
+						local dy = tpart.Position.Y - localPos.Y
+						local dz = tpart.Position.Z - localPos.Z
+						local distSq = dx * dx + dy * dy + dz * dz
+						if distSq < MAX_DISTANCE_SQUARED then
+							count = count + 1
+							targets[count] = {part = tpart, distSq = distSq}
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if count > 0 then
+		table.sort(targets, 1, count, function(a, b) return a.distSq < b.distSq end)
+		for i = 1, count do
+			pcall(HitEvent.FireServer, HitEvent, targets[i].part, "player", 1)
+		end
+		table.clear(targets)
+	end
+end)
